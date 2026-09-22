@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ayarlar - İş Takip</title>
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body { font-family: system-ui, sans-serif; margin: 0; padding: 16px; max-width: 700px; margin-inline: auto; }
+  h1 { font-size: 1.3rem; }
+  label { display: block; margin: 14px 0 4px; font-weight: 600; font-size: .9rem; }
+  input, textarea { width: 100%; padding: 8px; border-radius: 6px; border: 1px solid #8887; font: inherit; }
+  button { padding: 8px 16px; border-radius: 6px; border: 1px solid #8887; background: #0a84ff; color: #fff; font: inherit; cursor: pointer; }
+  button.secondary { background: #333; }
+  .actions { display: flex; gap: 8px; margin-top: 20px; flex-wrap: wrap; }
+  .pills { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0; }
+  .pill { border: 1px solid #8884; border-radius: 999px; padding: 2px 10px; font-size: .8rem; }
+  .err { color: #e74c3c; margin-top: 8px; }
+  .hint { font-size: .8rem; opacity: .7; font-weight: normal; }
+  .sched-box { margin-top: 24px; padding: 14px; border: 1px solid #8885; border-radius: 8px; }
+</style>
+</head>
+<body>
+  <header class="bar" style="display:flex; align-items:center; gap:12px;">
+    <h1>Ayarlar</h1>
+    <nav><a href="{{ url_for('index') }}">İlanlar</a></nav>
+  </header>
+
+  <div class="sched-box">
+    <strong>Scheduler durumu:</strong>
+    {% if sched.running %}
+      <span class="pill" style="background:#27ae6022">çalışıyor ({{ sched.interval_sec }}s)</span>
+    {% else %}
+      <span class="pill">kapalı</span>
+    {% endif %}
+    <div class="actions">
+      <button onclick="fetch('/api/start',{method:'POST'}).then(refresh)">Başlat</button>
+      <button class="secondary" onclick="fetch('/api/stop',{method:'POST'}).then(refresh)">Durdur</button>
+      <button class="secondary" onclick="fetch('/api/scrape',{method:'POST'}).then(r=>r.json().then(d=>alert('Scrape tamam. Uygun: '+d.kept))).catch(alert)">Şimdi çek</button>
+    </div>
+    {% if sched.last_duration > 0 %}<div class="hint">Son koşu: {{ sched.last_duration }}s</div>{% endif %}
+  </div>
+
+  <form method="post" action="{{ url_for('settings_page') }}">
+    <label>Interval (saniye, 0 = otomatik çekim kapalı)
+      <input type="number" name="interval_sec" min="0" value="{{ settings['interval_sec'] }}">
+    </label>
+
+    <label>Maksimum post yaşı (gün)
+      <input type="number" name="max_age_days" min="1" value="{{ settings['max_age_days'] }}">
+    </label>
+
+    <label>Çekilecek son post sayısı (subreddit başına)
+      <input type="number" name="fetch_limit" min="10" max="1000" value="{{ settings['fetch_limit'] }}">
+    </label>
+
+    <label>Subreddit'ler <span class="hint">virgülle ayırın</span>
+      <input type="text" name="subreddits" value="{{ settings['subreddits'] }}">
+    </label>
+
+    <label>Anahtar kelimeler <span class="hint">boş = süzme yok; virgülle ayırın</span>
+      <textarea name="keywords" rows="3" placeholder="python, react, ai, veri analizi">{{ settings['keywords'] }}</textarea>
+    </label>
+
+    {% if error %}<div class="err">{{ error }}</div>{% endif %}
+    <div class="actions">
+      <button type="submit">Kaydet</button>
+    </div>
+  </form>
+
+<script>
+function refresh(){ location.reload(); }
+</script>
+</body>
+</html>

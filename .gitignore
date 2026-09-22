@@ -1,0 +1,15 @@
+# Çevre / gizli bilgiler
+.env
+.env.*
+!.env.example
+
+# Veritabanı (kişisel veri, scrape çıktısı)
+*.db
+*.db-shm
+*.db-wal
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/

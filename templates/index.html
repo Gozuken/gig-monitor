@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>İş Takip - Kontrol Paneli</title>
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body { font-family: system-ui, sans-serif; margin: 0; padding: 16px; max-width: 1000px; margin-inline: auto; }
+  h1 { font-size: 1.3rem; }
+  .bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; }
+  .pill { border: 1px solid #8884; border-radius: 999px; padding: 2px 10px; font-size: .8rem; }
+  a { color: var(--link, #0a84ff); }
+  nav a { margin-right: 12px; }
+  .tabs { margin-bottom: 12px; }
+  .tabs a { text-decoration: none; padding: 4px 10px; border-radius: 6px; }
+  .tabs a.active { background: #0a84ff22; font-weight: 600; }
+  .card { border: 1px solid #8885; border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; }
+  .card .top { display: flex; justify-content: space-between; gap: 8px; }
+  .card .title { font-weight: 600; }
+  .card .meta { font-size: .8rem; opacity: .7; margin-top: 4px; }
+  .filt { color: #888; }
+  .badge { border-radius: 4px; padding: 1px 6px; font-size: .75rem; }
+  .badge.kept { background: #27ae6022; }
+  .badge.filtered { background: #e74c3c22; }
+  .empty { opacity: .6; padding: 24px; text-align: center; }
+  .err { color: #e74c3c; }
+  .mono { font-family: ui-monospace, monospace; }
+  pre { white-space: pre-wrap; font-family: inherit; font-size: .85rem; }
+</style>
+</head>
+<body>
+  <header class="bar">
+    <h1>İş Takip</h1>
+    <span class="pill">kept: {{ counts.get('kept', 0) }}</span>
+    <span class="pill">filtered: {{ counts.get('filtered', 0) }}</span>
+    <span class="pill">yeni: {{ counts.get('new', 0) }}</span>
+    {% if sched.running %}
+      <span class="pill" style="background:#27ae6022">scheduler: açık ({{ sched.interval_sec }}s)</span>
+    {% else %}
+      <span class="pill">scheduler: kapalı</span>
+    {% endif %}
+    <nav style="margin-left:auto">
+      <a href="{{ url_for('index') }}">İlanlar</a>
+      <a href="{{ url_for('settings_page') }}">Ayarlar</a>
+    </nav>
+  </header>
+
+  <div class="tabs">
+    <a href="{{ url_for('index', view='kept') }}" class="{{ 'active' if view == 'kept' }}">Uygun ilanlar</a>
+    <a href="{{ url_for('index', view='new') }}" class="{{ 'active' if view == 'new' }}">İşlenmemiş</a>
+    <a href="{{ url_for('index', view='filtered') }}" class="{{ 'active' if view == 'filtered' }}">Elendi</a>
+  </div>
+
+  <div id="list">
+  {% if view == 'kept' %}
+    {% for p in kept %}
+      <div class="card">
+        <div class="top">
+          <span class="badge kept">uygun</span>
+          <a href="{{ p['url'] }}" target="_blank" rel="noopener">{{ p['title'] }}</a>
+          <span class="meta" style="margin-left:auto">
+            r/{{ p['subreddit'] }} · {{ p['flair'] or 'flair yok' }} · {{ format_age(p['created_utc']) }} önce
+          </span>
+        </div>
+        {% if p['budget'] %}<div class="meta">bütçe: ${{ p['budget'] }}</div>{% endif %}
+        {% if p['body'] %}<pre class="mono">{{ p['body'][:400] }}{% if p['body']|length > 400 %}<span class="filt"> …</span>{% endif %}</pre>{% endif %}
+      </div>
+    {% else %}
+      <div class="empty">Şu anda uygun ilan yok. Ayarlar'dan <code>Çek</code> ile scrape edin.</div>
+    {% endfor %}
+  {% elif view == 'new' %}
+    {% for p in new %}
+      <div class="card">
+        <div class="top">
+          <span class="badge" style="background:#f0ad4e22">işlenmedi</span>
+          <a href="{{ p['url'] }}" target="_blank" rel="noopener">{{ p['title'] }}</a>
+          <span class="meta" style="margin-left:auto">r/{{ p['subreddit'] }} · {{ format_age(p['created_utc']) }}</span>
+        </div>
+        {% if p['body'] %}<pre class="mono">{{ p['body'][:300] }}</pre>{% endif %}
+      </div>
+    {% else %}
+      <div class="empty">Bekleyen (işlenmemiş) ilan yok.</div>
+    {% endfor %}
+  {% else %}
+    {% for p in filtered %}
+      <div class="card">
+        <div class="top">
+          <span class="badge filtered">{{ p['filter_reason'] or 'elenmis' }}</span>
+          <a href="{{ p['url'] }}" target="_blank" rel="noopener">{{ p['title'] }}</a>
+          <span class="meta" style="margin-left:auto">r/{{ p['subreddit'] }} · {{ format_age(p['created_utc']) }}</span>
+        </div>
+      </div>
+    {% else %}
+      <div class="empty">Elendi geçmişi boş.</div>
+    {% endfor %}
+  {% endif %}
+  </div>
+</body>
+</html>
