@@ -63,13 +63,64 @@
       <textarea name="keywords" rows="3" placeholder="python, react, ai, veri analizi">{{ settings['keywords'] }}</textarea>
     </label>
 
+    <h2 style="margin-top:28px; font-size:1.1rem">AI Filtre</h2>
+    <div class="hint">Sağlayıcı seçin veya OpenAI-uyumlu herhangi bir endpoint kullanın. Ollama yerel = anahtar gerekmez.</div>
+
+    <label>Sağlayıcı (hazır şablon)
+      <select id="provider" onchange="fillPreset()">
+        <option value="">— seçin —</option>
+        <option value="ollama">Ollama (yerel)</option>
+        <option value="gemini">Google Gemini</option>
+        <option value="openai">OpenAI</option>
+        <option value="openrouter">OpenRouter</option>
+        <option value="groq">Groq</option>
+        <option value="mistral">Mistral</option>
+      </select>
+    </label>
+
+    <label>Base URL
+      <input type="text" name="ai_base_url" value="{{ settings['ai_base_url'] }}" placeholder="http://localhost:11434/v1">
+    </label>
+
+    <label>Model
+      <input type="text" name="ai_model" value="{{ settings['ai_model'] }}" placeholder="llama3 / gemini-2.0-flash / gpt-4o-mini ...">
+    </label>
+
+    <label>API Key <span class="hint">Ollama yerel kullanıyorsanız boş bırakın</span>
+      <input type="password" name="ai_api_key" value="{{ settings['ai_api_key'] }}" autocomplete="off">
+    </label>
+
+    <label>Uygunluk eşiği <span class="hint">0-100; altındaki ilanlar AI listesine girmez</span>
+      <input type="number" name="ai_threshold" min="0" max="100" value="{{ settings['ai_threshold'] }}">
+    </label>
+
+    <label>Profil metnin (CV / kendini tanıtma / istekler)
+      <textarea name="ai_profile" rows="6" placeholder="Örn: Python backend geliştiricisiyim, 3 yıl deneyim. Web scraping, SQL, FastAPI. Uzaktan çalışabilirim...">{{ settings['ai_profile'] }}</textarea>
+    </label>
+
     {% if error %}<div class="err">{{ error }}</div>{% endif %}
     <div class="actions">
       <button type="submit">Kaydet</button>
+      <button type="submit" name="action" value="apply">Kaydet ve Uygula</button>
     </div>
   </form>
 
 <script>
+const PRESETS = {
+  ollama:    { url: 'http://localhost:11434/v1', model: 'llama3' },
+  gemini:    { url: 'https://generativelanguage.googleapis.com/v1beta/openai', model: 'gemini-2.0-flash' },
+  openai:    { url: 'https://api.openai.com/v1', model: 'gpt-4o-mini' },
+  openrouter:{ url: 'https://openrouter.ai/api/v1', model: 'openrouter/auto' },
+  groq:      { url: 'https://api.groq.com/openai/v1', model: 'llama-3.3-70b-versatile' },
+  mistral:   { url: 'https://api.mistral.ai/v1', model: 'mistral-small-latest' },
+};
+function fillPreset(){
+  const v = document.getElementById('provider').value;
+  if (!v) return;
+  const p = PRESETS[v];
+  document.querySelector('input[name="ai_base_url"]').value = p.url;
+  document.querySelector('input[name="ai_model"]').value = p.model;
+}
 function refresh(){ location.reload(); }
 </script>
 </body>

@@ -36,6 +36,18 @@ DEFAULT_SETTINGS = {
     "fetch_limit": str(config.DEFAULT_FETCH_LIMIT),
     "keywords": config.DEFAULT_KEYWORDS,
     "subreddits": ",".join(config.DEFAULT_SUBREDDITS),
+    # AI filtre
+    "ai_profile": "",
+    "ai_base_url": config.LLM_BASE_URL,
+    "ai_model": config.LLM_MODEL,
+    "ai_api_key": config.GOOGLE_API_KEY,
+    "ai_threshold": str(config.AI_THRESHOLD),
+}
+
+_AI_COLUMNS = {
+    "ai_score": "REAL",
+    "ai_reason": "TEXT",
+    "ai_checked": "REAL",
 }
 
 
@@ -44,9 +56,18 @@ def connect(db_path=None) -> sqlite3.Connection:
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
     conn.executescript(SCHEMA)
+    _migrate(conn)
     _seed_settings(conn)
     conn.commit()
     return conn
+
+
+def _migrate(conn: sqlite3.Connection) -> None:
+    """Mevcut posts tablosuna eksik AI kolonlarini ekler."""
+    cols = {row["name"] for row in conn.execute("PRAGMA table_info(posts)")}
+    for name, col_type in _AI_COLUMNS.items():
+        if name not in cols:
+            conn.execute(f"ALTER TABLE posts ADD COLUMN {name} {col_type}")
 
 
 def _seed_settings(conn: sqlite3.Connection) -> None:
@@ -140,6 +161,36 @@ def set_post_status(
 
 def set_budget(conn: sqlite3.Connection, post_id: str, budget: str) -> None:
     conn.execute("UPDATE posts SET budget = ? WHERE id = ?", (budget, post_id))
+
+
+def set_ai_result(conn: sqlite3.Connection, post_id: str, score, reason: str) -> None:
+    conn.execute(
+        "UPDATE posts SET ai_score = ?, ai_reason = ?, ai_checked = ? WHERE id = ?",
+        (score, reason, time.time(), post_id),
+    )
+
+
+def ai_kept_posts(conn: sqlite3.Connection, threshold: int) -> list[sqlite3.Row]:
+    return conn.execute(
+        """
+        SELECT * FROM posts
+        WHERE status = 'kept' AND ai_score IS NOT NULL AND ai_score >= ?
+        ORDER BY ai_score DESC, created_utc DESC
+        """,
+        (threshold,),
+    ).fetchall()
+
+
+def pending_ai_posts(conn: sqlite3.Connection, limit: int) -> list[sqlite3.Row]:
+    return conn.execute(
+        """
+        SELECT * FROM posts
+        WHERE status = 'kept'
+        ORDER BY created_utc DESC
+        LIMIT ?
+        """,
+        (limit,),
+    ).fetchall()
 
 
 def pending_posts(conn: sqlite3.Connection) -> list[sqlite3.Row]:

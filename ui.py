@@ -54,6 +54,11 @@ def index():
         view = request.args.get("view", "kept")
         kept = storage.list_posts(conn, status="kept")
         new = storage.list_posts(conn, status="new")
+        ai = []
+        ai_threshold = config.AI_THRESHOLD
+        if view == "ai":
+            ai_threshold = storage.get_setting_int(conn, "ai_threshold")
+            ai = storage.ai_kept_posts(conn, ai_threshold)
         filtered = storage.list_posts(conn, status="filtered")
         counts = storage.count_by_status(conn)
         settings = storage.get_settings(conn)
@@ -61,6 +66,8 @@ def index():
             "index.html",
             kept=kept,
             new=new,
+            ai=ai,
+            ai_threshold=ai_threshold,
             filtered=filtered,
             counts=counts,
             settings=settings,
@@ -103,6 +110,11 @@ def apply_settings(conn):
         "keywords": form.get("keywords", ""),
         "subreddits": form.get("subreddits", ""),
         "fetch_limit": form.get("fetch_limit", "100"),
+        "ai_profile": form.get("ai_profile", ""),
+        "ai_base_url": form.get("ai_base_url", ""),
+        "ai_model": form.get("ai_model", ""),
+        "ai_api_key": form.get("ai_api_key", ""),
+        "ai_threshold": form.get("ai_threshold", "50"),
     }
     for k, v in loud.items():
         storage.set_setting(conn, k, v)
@@ -146,6 +158,53 @@ def api_scrape():
                 return jsonify({"ok": False, "error": "scheduler calisiyor"}), 409
             kept = scheduler.scrape_and_clean(conn)
         return jsonify({"ok": True, "kept": kept})
+    finally:
+        conn.close()
+
+
+@app.route("/api/ai_filter", methods=["POST"])
+def api_ai_filter():
+    import ai
+
+    conn = _conn()
+    try:
+        settings = storage.get_settings(conn)
+        profile = (settings.get("ai_profile") or "").strip()
+        if not profile:
+            return jsonify({"ok": False, "error": "once Ayarlar'dan profil metni (CV) gir"}), 400
+        base = (settings.get("ai_base_url") or "").strip()
+        model = (settings.get("ai_model") or "").strip()
+        apikey = (settings.get("ai_api_key") or "").strip()
+        if not base or not model:
+            return jsonify({"ok": False, "error": "ai_base_url / ai_model ayari eksik (Ayarlar)"}), 400
+
+        posts = storage.pending_ai_posts(conn, limit=50)
+        if not posts:
+            return jsonify({"ok": False, "error": "henuz uygun (kept) ilan yok"}), 404
+
+        with _lock:
+            results = ai.score_posts([dict(p) for p in posts], profile, base, apikey, model)
+
+        threshold = storage.get_setting_int(conn, "ai_threshold")
+        above = below = failed = 0
+        for post_id, info in results.items():
+            storage.set_ai_result(conn, post_id, info["score"], info["reason"])
+            if info["score"] is None:
+                failed += 1
+            elif info["score"] >= threshold:
+                above += 1
+            else:
+                below += 1
+
+        scored = len(results) - failed
+        return jsonify({
+            "ok": True,
+            "scanned": len(results),
+            "scored": scored,
+            "above_threshold": above,
+            "below_threshold": below,
+            "failed": failed,
+        })
     finally:
         conn.close()
 

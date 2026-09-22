@@ -28,6 +28,9 @@
   .err { color: #e74c3c; }
   .mono { font-family: ui-monospace, monospace; }
   pre { white-space: pre-wrap; font-family: inherit; font-size: .85rem; }
+  .hint { font-size: .8rem; opacity: .8; }
+  button { padding: 6px 14px; border-radius: 6px; border: 1px solid #8887; background: #0a84ff; color: #fff; font: inherit; cursor: pointer; }
+  .ai-tag { font-size: .75rem; border-radius: 4px; padding: 1px 6px; background: #9b59b622; margin-left: 6px; }
 </style>
 </head>
 <body>
@@ -48,18 +51,40 @@
   </header>
 
   <div class="tabs">
+    <a href="{{ url_for('index', view='ai') }}" class="{{ 'active' if view == 'ai' }}">AI uygun</a>
     <a href="{{ url_for('index', view='kept') }}" class="{{ 'active' if view == 'kept' }}">Uygun ilanlar</a>
     <a href="{{ url_for('index', view='new') }}" class="{{ 'active' if view == 'new' }}">İşlenmemiş</a>
     <a href="{{ url_for('index', view='filtered') }}" class="{{ 'active' if view == 'filtered' }}">Elendi</a>
   </div>
 
+  <div class="bar" style="margin-bottom:12px">
+    <button onclick="runAiFilter()">AI Filtrele</button>
+    <span class="hint" id="ai-status"></span>
+  </div>
+
   <div id="list">
-  {% if view == 'kept' %}
+  {% if view == 'ai' %}
+    <div class="meta" style="margin-bottom:8px">Eşik: {{ ai_threshold }}+ ({{ counts.get('kept', 0) }} uygun ilandan AI puanlananlar)</div>
+    {% for p in ai %}
+      <div class="card">
+        <div class="top">
+          <span class="badge" style="background:#9b59b622">{{ p['ai_score'] }} puan</span>
+          <a href="{{ p['url'] }}" target="_blank" rel="noopener">{{ p['title'] }}</a>
+          <span class="meta" style="margin-left:auto">r/{{ p['subreddit'] }} · {{ format_age(p['created_utc']) }}</span>
+        </div>
+        {% if p['ai_reason'] %}<div class="meta">🤖 {{ p['ai_reason'] }}</div>{% endif %}
+        {% if p['budget'] %}<div class="meta">bütçe: ${{ p['budget'] }}</div>{% endif %}
+      </div>
+    {% else %}
+      <div class="empty">AI filtresi henüz çalıştırılmadı. Önce Ayarlar'dan profil metnini girip <code>AI Filtrele</code> e basın.</div>
+    {% endfor %}
+  {% elif view == 'kept' %}
     {% for p in kept %}
       <div class="card">
         <div class="top">
           <span class="badge kept">uygun</span>
           <a href="{{ p['url'] }}" target="_blank" rel="noopener">{{ p['title'] }}</a>
+          {% if p['ai_score'] is not none %}<span class="ai-tag" title="{{ p['ai_reason'] or '' }}">AI: {{ p['ai_score'] }}</span>{% endif %}
           <span class="meta" style="margin-left:auto">
             r/{{ p['subreddit'] }} · {{ p['flair'] or 'flair yok' }} · {{ format_age(p['created_utc']) }} önce
           </span>
@@ -97,5 +122,21 @@
     {% endfor %}
   {% endif %}
   </div>
+
+<script>
+function runAiFilter(){
+  const btn = document.querySelector('button');
+  const st = document.getElementById('ai-status');
+  btn.disabled = true; st.textContent = 'AI filtreleniyor...';
+  fetch('/api/ai_filter', {method:'POST'})
+    .then(r => r.json())
+    .then(d => {
+      if (d.ok) st.textContent = `Bitti: ${d.scanned} tarandı, eşik üstü ${d.above_threshold}, altı ${d.below_threshold}${d.failed ? ', hata ' + d.failed : ''}`;
+      else { st.textContent = ''; alert(d.error || 'hata'); }
+    })
+    .catch(e => { st.textContent = ''; alert('Hata: ' + e); })
+    .finally(() => { btn.disabled = false; location.reload(); });
+}
+</script>
 </body>
 </html>
